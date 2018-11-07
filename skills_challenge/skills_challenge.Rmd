@@ -1,0 +1,61 @@
+---
+title: "Skills Challenge R Visualizations"
+output: html_notebook
+---
+
+This data is from ftp://ftp.ncdc.noaa.gov/pub/data/noaa/isd-lite/ and the data was gathered with the java program in the github repository here: . These visualizations are meant to show some interesting results that can be gleaned from the data gathered from the database and outputted into the csv files. 
+
+```{r}
+# Load in Raw data from csv files
+
+library("ggplot2")
+library("dplyr")
+Site_data_raw <- read.csv(file="temps_by_year.csv", header=F, sep=",",na.strings=c("nu"),row.names=NULL)
+
+Site_counts <-read.csv(file="weather_station_counts.csv", header=T, sep=",")
+
+ISD_site_information <-read.csv(file="isd-history.csv", header=T, sep=",")
+
+ISD_site_information$Combined_ID <- paste(ISD_site_information$USAF, ISD_site_information$WBAN,sep="-")
+
+ISD_site_information <- merge(ISD_site_information,Site_counts,by.x=c("Combined_ID"),
+    by.y=c("Weather.Station") )
+```
+
+
+```{r}
+
+# clean data from csv import
+Site_data_clean <- Site_data_raw[1:14]
+names(Site_data_clean) <- as.character(unlist(Site_data_clean[1,]))
+Site_data_clean <- Site_data_clean[-1,]
+indx <- sapply(Site_data_clean, is.factor)
+indx[1]<-FALSE
+Site_data_clean[indx] <- lapply(Site_data_clean[indx], function(x) as.numeric(as.character(x)))
+Site_data_clean$YR_Avg <- rowMeans(Site_data_clean[3:14],na.rm = T)
+
+# 108660-99999 is MUNCHEN from the ISD history doc
+ggplot(
+  data = Site_data_clean,
+  aes(x=Year,y=YR_Avg)
+)+geom_point()+ggtitle("Temperature over time for site at MUNCHEN")+labs(y="Temperature (F)", x = "Year")+theme(plot.title = element_text(hjust = 0.5))+geom_smooth(formula = 'y ~ x',method = 'loess')
+
+```
+
+This will explore the data in weather_station_counts.csv and use the isd-history.csv file to match the names/country to the site count
+```{r}
+
+
+
+Country_summary <- ISD_site_information %>% group_by(CTRY)%>%summarize(ctry_count = sum(Count))%>% arrange(desc(ctry_count))
+ggplot()+geom_col(data = Country_summary[1:10,],aes(x = reorder(CTRY, -ctry_count),y = ctry_count))+ggtitle("Top 10 Countries by Weather Station Count")+theme(plot.title = element_text(hjust = 0.5))+labs(x = "Country Code",y = "Count")
+
+```
+
+Plot all sites by their LAT/LON on the world map
+```{r}
+world_map_df <- map_data("world")
+ggplot() + 
+  geom_polygon(data = world_map_df, aes(x=long, y = lat, group = group), fill = NA, color = "black") + geom_point(data = ISD_site_information, aes(x = LON,y = LAT),alpha = .05)+ggtitle("Locations of Weather Stations")+theme(plot.title = element_text(hjust = 0.5))
+```
+
