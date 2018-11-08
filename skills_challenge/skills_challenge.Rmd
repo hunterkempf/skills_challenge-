@@ -10,6 +10,8 @@ This data is from ftp://ftp.ncdc.noaa.gov/pub/data/noaa/isd-lite/ and the data w
 
 library("ggplot2")
 library("dplyr")
+library("tidyr")
+
 Site_data_raw <- read.csv(file="temps_by_year.csv", header=F, sep=",",na.strings=c("nu"),row.names=NULL)
 
 Site_counts <-read.csv(file="weather_station_counts.csv", header=T, sep=",")
@@ -38,9 +40,39 @@ Site_data_clean$YR_Avg <- rowMeans(Site_data_clean[3:14],na.rm = T)
 ggplot(
   data = Site_data_clean,
   aes(x=Year,y=YR_Avg)
-)+geom_point()+ggtitle("Temperature over time for site at MUNCHEN")+labs(y="Temperature (F)", x = "Year")+theme(plot.title = element_text(hjust = 0.5))+geom_smooth(formula = 'y ~ x',method = 'loess')
+)+geom_point()+ggtitle("Average Yearly Temperature for site in Munich")+labs(y="Temperature (F)", x = "Year")+theme(plot.title = element_text(hjust = 0.5))+geom_smooth(formula = 'y ~ x',method = 'loess')
 
 ```
+This will explore the first and last full years of temperatures in Munich
+
+```{r}
+year_1930_data <- Site_data_clean%>% filter((Year>=1930)& (Year<=1940)) %>%select(-YR_Avg,-Weather_site)
+year_2010_data <- Site_data_clean%>% filter((Year>=2010)) %>%select(-YR_Avg,-Weather_site)
+
+# make data long, get month averages for decade and take month abbreviations and make numbers for plotting
+year_1930_data_long <- year_1930_data %>% rbind(c(1,colMeans(year_1930_data[2:13],na.rm = T))) %>% filter(Year==1) %>% gather(key="Month",value = "Avg_Temp",Jan:Dec) %>%mutate(Month_Num = match(Month,month.abb))
+year_2010_data_long <- year_2010_data %>% rbind(c(1,colMeans(year_2010_data[2:13],na.rm = T))) %>% filter(Year==1)%>% gather(key="Month",value = "Avg_Temp",Jan:Dec)%>%mutate(Month_Num = match(Month,month.abb))
+
+##Graphics 
+
+#start with points 
+points_years = ggplot()+ geom_point(data = year_1930_data_long,aes(x =Month_Num,y = Avg_Temp,color = "1930s"))+ 
+  geom_point(data = year_2010_data_long,aes(x =Month_Num,y = Avg_Temp,color = "2010s"))
+
+#add lines
+lines_years = points_years + geom_smooth(data = year_1930_data_long,formula = 'y ~ x',method = 'loess',aes(x =Month_Num,y = Avg_Temp,color = "1930s"))+
+  geom_smooth(data = year_2010_data_long,formula = 'y ~ x',method = 'loess',aes(x =Month_Num,y = Avg_Temp,color = "2010s"))
+
+#add labels and theme changes
+lines_years +
+  labs(x = "Month" ,y="Avg Temperature (F)",color='Decade') +
+  scale_x_continuous(breaks = c(1,3,6,9,12))+
+  ggtitle("Average Temperatures by Month in Munich:\n 1930s vs 2010s")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+This shows that between the first decade recorded and the last decade recorded the winters (early and late months) have gotten warmer but the summers (middle months) have stayed about the same in Munich 
+
+
 
 This will explore the data in weather_station_counts.csv and use the isd-history.csv file to match the names/country to the site count
 ```{r}
@@ -59,3 +91,4 @@ ggplot() +
   geom_polygon(data = world_map_df, aes(x=long, y = lat, group = group), fill = NA, color = "black") + geom_point(data = ISD_site_information, aes(x = LON,y = LAT),alpha = .05)+ggtitle("Locations of Weather Stations")+theme(plot.title = element_text(hjust = 0.5))
 ```
 
+As this shows the density of the sites are highest in the US, Europe and Japan.
